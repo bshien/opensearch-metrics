@@ -9,6 +9,7 @@ import {OpenSearchMetricsNginxReadonly} from "./stacks/opensearchNginxProxyReado
 import {ArnPrincipal} from "aws-cdk-lib/aws-iam";
 import {OpenSearchWAF} from "./stacks/waf";
 import {OpenSearchMetricsNginxCognito} from "./constructs/opensearchNginxProxyCognito";
+import {OpenSearchMetricsMonitoringStack} from "./stacks/monitoringDashboard";
 
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 export class InfrastructureStack extends Stack {
@@ -26,52 +27,59 @@ export class InfrastructureStack extends Stack {
       account: Project.AWS_ACCOUNT,
       vpcStack: vpcStack,
       enableNginxCognito: true,
-      jenkinsAccess: {
-        jenkinsAccountRoles:  [
-          new ArnPrincipal(Project.JENKINS_MASTER_ROLE),
-          new ArnPrincipal(Project.JENKINS_AGENT_ROLE)
-        ]
-      }
+      // jenkinsAccess: {
+      //   jenkinsAccountRoles:  [
+      //     new ArnPrincipal(Project.JENKINS_MASTER_ROLE),
+      //     new ArnPrincipal(Project.JENKINS_AGENT_ROLE)
+      //   ]
+      // }
     });
-
 
     // Create OpenSearch Metrics Lambda setup
     const openSearchMetricsWorkflowStack = new OpenSearchMetricsWorkflowStack(app, 'OpenSearchMetrics-Workflow', {
       opensearchDomainStack: openSearchDomainStack, vpcStack: vpcStack, lambdaPackage: Project.LAMBDA_PACKAGE})
     openSearchMetricsWorkflowStack.node.addDependency(vpcStack, openSearchDomainStack);
 
+    // Create Monitoring Dashboard
 
-    // Create OpenSearch Metrics Frontend DNS
-    const metricsHostedZone = new OpenSearchHealthRoute53(app, "OpenSearchMetrics-HostedZone", {
-      hostedZone: Project.METRICS_HOSTED_ZONE,
-      appName: "OpenSearchMetrics"
-    });
-
-    // Create OpenSearch Metrics Frontend Nginx Server and load balancer
-    const openSearchMetricsNginxReadonly = new OpenSearchMetricsNginxReadonly(app, "OpenSearchMetricsNginxReadonly", {
+    const openSearchMetricsMonitoringStack = new OpenSearchMetricsMonitoringStack(app, "OpenSearchMetrics-Monitoring", {
       region: Project.REGION,
       account: Project.AWS_ACCOUNT,
-      vpc: vpcStack.vpc,
-      securityGroup: vpcStack.securityGroup,
-      opensearchDashboardUrlProps: {
-        opensearchDashboardVpcUrl: openSearchDomainStack.domain.domainEndpoint,
-        openSearchDomainName: openSearchDomainStack.domain.domainName
-      },
-      ami: Project.EC2_AMI_SSM.toString(),
-      albProps: {
-        hostedZone: metricsHostedZone,
-        certificateArn: metricsHostedZone.certificateArn,
-      },
-    });
-    openSearchMetricsNginxReadonly.node.addDependency(vpcStack, openSearchDomainStack);
+      workflowComponent: openSearchMetricsWorkflowStack.workflowComponent
+    })
+    openSearchMetricsMonitoringStack.node.addDependency(openSearchMetricsWorkflowStack);
+
+    // Create OpenSearch Metrics Frontend DNS
+    // const metricsHostedZone = new OpenSearchHealthRoute53(app, "OpenSearchMetrics-HostedZone", {
+    //   hostedZone: Project.METRICS_HOSTED_ZONE,
+    //   appName: "OpenSearchMetrics"
+    // });
+
+    // Create OpenSearch Metrics Frontend Nginx Server and load balancer
+    // const openSearchMetricsNginxReadonly = new OpenSearchMetricsNginxReadonly(app, "OpenSearchMetricsNginxReadonly", {
+    //   region: Project.REGION,
+    //   account: Project.AWS_ACCOUNT,
+    //   vpc: vpcStack.vpc,
+    //   securityGroup: vpcStack.securityGroup,
+    //   opensearchDashboardUrlProps: {
+    //     opensearchDashboardVpcUrl: openSearchDomainStack.domain.domainEndpoint,
+    //     openSearchDomainName: openSearchDomainStack.domain.domainName
+    //   },
+    //   ami: Project.EC2_AMI_SSM.toString(),
+    //   albProps: {
+    //     hostedZone: metricsHostedZone,
+    //     certificateArn: metricsHostedZone.certificateArn,
+    //   },
+    // });
+    // openSearchMetricsNginxReadonly.node.addDependency(vpcStack, openSearchDomainStack);
 
     // Create an OpenSearch WAF stack
-    const openSearchWAF = new OpenSearchWAF(app, "OpenSearchWAF", {
-      readOnlyLoadBalancerArn: Fn.importValue(`${OpenSearchMetricsNginxReadonly.READONLY_ALB_ARN}`),
-      cognitoLoadBalancerArn: Fn.importValue(`${OpenSearchMetricsNginxCognito.COGNITO_ALB_ARN}`),
-      appName: "OpenSearchMetricsWAF"
-    });
-    openSearchWAF.node.addDependency(openSearchDomainStack, openSearchMetricsNginxReadonly);
+    // const openSearchWAF = new OpenSearchWAF(app, "OpenSearchWAF", {
+    //   readOnlyLoadBalancerArn: Fn.importValue(`${OpenSearchMetricsNginxReadonly.READONLY_ALB_ARN}`),
+    //   cognitoLoadBalancerArn: Fn.importValue(`${OpenSearchMetricsNginxCognito.COGNITO_ALB_ARN}`),
+    //   appName: "OpenSearchMetricsWAF"
+    // });
+    // openSearchWAF.node.addDependency(openSearchDomainStack, openSearchMetricsNginxReadonly);
 
   }
 }

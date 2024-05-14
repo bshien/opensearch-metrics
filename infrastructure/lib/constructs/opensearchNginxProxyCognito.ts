@@ -61,6 +61,12 @@ export class OpenSearchMetricsNginxCognito extends Construct {
 
         const instanceRole = this.createInstanceRole();
 
+        const ec2SecurityGroup = new SecurityGroup(this, 'EC2SecurityGroup', {
+            vpc,
+            allowAllOutbound: true,
+        });
+        ec2SecurityGroup.addIngressRule(Peer.prefixList(Project.RESTRICTED_PREFIX), Port.tcp(443));
+
         this.asg = new AutoScalingGroup(this, 'OpenSearchMetricsCognito-MetricsProxyAsg', {
             instanceType: InstanceType.of(InstanceClass.M5, InstanceSize.LARGE),
             blockDevices: [{ deviceName: '/dev/xvda', volume: BlockDeviceVolume.ebs(10) }], // GB
@@ -68,14 +74,16 @@ export class OpenSearchMetricsNginxCognito extends Construct {
             machineImage: props && props.ami ?
                 MachineImage.fromSsmParameter(props.ami) :
                 MachineImage.latestAmazonLinux2(),
-            associatePublicIpAddress: false,
+            associatePublicIpAddress: true,
             allowAllOutbound: true,
             desiredCapacity: 1,
             minCapacity: 1,
             vpc: props.vpc,
             vpcSubnets: {
-                subnetType: SubnetType.PRIVATE_WITH_EGRESS
+                subnetType: SubnetType.PUBLIC
             },
+            securityGroup: ec2SecurityGroup,
+            // securityGroup: securityGroup,
             role: instanceRole,
             updatePolicy: UpdatePolicy.replacingUpdate()
         });

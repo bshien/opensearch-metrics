@@ -177,10 +177,10 @@ export class OpenSearchDomainStack extends Stack {
 
         this.domain.node.addDependency(serviceLinkedRole);
         if(props.enableNginxCognito) {
-            const metricsHostedZone = new OpenSearchHealthRoute53(this, "OpenSearchMetricsCognito-HostedZone", {
-                hostedZone: Project.METRICS_COGNITO_HOSTED_ZONE,
-                appName: "OpenSearchMetricsCognito"
-            });
+            // const metricsHostedZone = new OpenSearchHealthRoute53(this, "OpenSearchMetricsCognito-HostedZone", {
+            //     hostedZone: Project.METRICS_COGNITO_HOSTED_ZONE,
+            //     appName: "OpenSearchMetricsCognito"
+            // });
             new OpenSearchMetricsNginxCognito(this, "OpenSearchMetricsNginx", {
                 region: this.props.region,
                 vpc: props.vpcStack.vpc,
@@ -190,10 +190,10 @@ export class OpenSearchDomainStack extends Stack {
                     cognitoDomain: metricsCognito.userPoolDomain.domain
                 },
                 ami: Project.EC2_AMI_SSM.toString(),
-                albProps: {
-                    hostedZone: metricsHostedZone,
-                    certificateArn: metricsHostedZone.certificateArn,
-                },
+                // albProps: {
+                //     hostedZone: metricsHostedZone,
+                //     certificateArn: metricsHostedZone.certificateArn,
+                // },
             });
         }
     }

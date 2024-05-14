@@ -30,8 +30,7 @@ export class SnsMonitors extends Construct {
         this.snsTopic = props.snsTopic
 
         // The email_list for receiving alerts
-        let email_list: Array<string> = [
-            'pgodithi@amazon.com',
+        let emailList: Array<string> = [
             'bshien@amazon.com'
         ];
 
@@ -55,7 +54,7 @@ export class SnsMonitors extends Construct {
         })
 
         // Send email notification to the recipients
-        for (const email of email_list) {
+        for (const email of emailList) {
             sns_topic.addSubscription(new subscriptions.EmailSubscription(email));
         }
     }

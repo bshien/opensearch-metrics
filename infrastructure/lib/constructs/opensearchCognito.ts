@@ -19,7 +19,7 @@ export class OpenSearchMetricsCognito extends Construct {
     constructor(scope: Construct, id: string, props: OpenSearchMetricsCognitoProps) {
         super(scope, id);
 
-        const userPoolDomainName = "opensearch-health-user-pool"
+        const userPoolDomainName = "opensearch-health-test-user-pool"
         this.userPool = new cognito.CfnUserPool(this, "OpenSearchHealthUserPool", {
             userPoolName: userPoolDomainName,
             adminCreateUserConfig: {
