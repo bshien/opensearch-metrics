@@ -2,6 +2,10 @@ import {Stack, StackProps} from "aws-cdk-lib";
 import { Construct } from 'constructs';
 import { WorkflowComponent } from "./metricsWorkflow";
 import { SnsMonitors } from "../constructs/snsMonitor";
+import {SlackLambda} from "../constructs/slackLambda";
+import {Function} from 'aws-cdk-lib/aws-lambda';
+import {canaryMonitor} from "../constructs/canaryMonitor";
+
 
 interface OpenSearchMetricsMonitoringStackProps extends StackProps {
     readonly region: string;
@@ -11,9 +15,18 @@ interface OpenSearchMetricsMonitoringStackProps extends StackProps {
 
 export class OpenSearchMetricsMonitoringStack extends Stack {
 
+    private readonly slackLambda: SlackLambda;
+
     constructor(scope: Construct, id: string, readonly props: OpenSearchMetricsMonitoringStackProps) {
         super(scope, id, props);
+        this.slackLambda = new SlackLambda(this, 'SlackLambda');
         this.snsMonitorStepFunctionExecutionsFailed();
+        new canaryMonitor(this, "SnsMonitors-CanaryFailed", {
+            snsTopic: "CanaryFailed",
+            slackLambda: this.slackLambda
+        });
+
+
     }
 
     /**
@@ -30,6 +43,7 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
             stepFunctionSnsAlarms: stepFunctionSnsAlarms,
             alarmNameSpace: "AWS/States",
             snsTopic: "StepFunctionExecutionsFailed",
+            slackLambda: this.slackLambda
         });
     }
 }
