@@ -45,7 +45,8 @@ export class InfrastructureStack extends Stack {
     const openSearchMetricsMonitoringStack = new OpenSearchMetricsMonitoringStack(app, "OpenSearchMetrics-Monitoring", {
       region: Project.REGION,
       account: Project.AWS_ACCOUNT,
-      workflowComponent: openSearchMetricsWorkflowStack.workflowComponent
+      workflowComponent: openSearchMetricsWorkflowStack.workflowComponent,
+      lambdaPackage: Project.LAMBDA_PACKAGE
     })
     openSearchMetricsMonitoringStack.node.addDependency(openSearchMetricsWorkflowStack);
 

@@ -6,6 +6,7 @@ import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as actions from "aws-cdk-lib/aws-cloudwatch-actions";
 import {SlackLambda} from "./slackLambda";
 import {Function} from 'aws-cdk-lib/aws-lambda';
+import {OpenSearchLambda} from "./lambda";
 
 interface SnsMonitorsProps {
     readonly region: string;
@@ -13,7 +14,7 @@ interface SnsMonitorsProps {
     readonly stepFunctionSnsAlarms: Array<{ alertName: string, stateMachineName: string }>;
     readonly alarmNameSpace: string;
     readonly snsTopic: string;
-    readonly slackLambda: SlackLambda;
+    readonly slackLambda: OpenSearchLambda;
 }
 
 export class SnsMonitors extends Construct {
@@ -22,7 +23,7 @@ export class SnsMonitors extends Construct {
     private readonly stepFunctionSnsAlarms: Array<{ alertName: string, stateMachineName: string }>;
     private readonly alarmNameSpace: string;
     private readonly snsTopic: string;
-    private readonly slackLambda: SlackLambda;
+    private readonly slackLambda: OpenSearchLambda;
 
     constructor(scope: Construct, id: string, props: SnsMonitorsProps) {
         super(scope, id);
@@ -63,7 +64,7 @@ export class SnsMonitors extends Construct {
         }
 
         // Send slack notification
-        sns_topic.addSubscription(new subscriptions.LambdaSubscription(this.slackLambda.handler));
+        sns_topic.addSubscription(new subscriptions.LambdaSubscription(this.slackLambda.lambda));
     }
 
     private stepFunctionExecutionsFailed(alertName: string, stateMachineName: string): [Alarm, string] {

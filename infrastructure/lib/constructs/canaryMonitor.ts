@@ -7,15 +7,17 @@ import {SlackLambda} from "./slackLambda";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as actions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+import {OpenSearchLambda} from "./lambda";
+
 
 interface canaryMonitorsProps {
     readonly snsTopic: string;
-    readonly slackLambda: SlackLambda;
+    readonly slackLambda: OpenSearchLambda;
 }
 
 export class canaryMonitor extends Construct {
     private readonly snsTopic: string;
-    private readonly slackLambda: SlackLambda;
+    private readonly slackLambda: OpenSearchLambda;
     constructor(scope: Construct, id: string, props: canaryMonitorsProps){
         super(scope, id);
         this.snsTopic = props.snsTopic;
@@ -29,10 +31,13 @@ export class canaryMonitor extends Construct {
         const canary = new synthetics.Canary(this, 'CanaryMonitor', {
             schedule: synthetics.Schedule.rate(Duration.minutes(1)),
             test: synthetics.Test.custom({
-                code: synthetics.Code.fromAsset(path.join(__dirname, '../canary')),
+                code: synthetics.Code.fromAsset(path.join(__dirname, '../../canary')),
                 handler: 'index.handler',
             }),
-            runtime: synthetics.Runtime.SYNTHETICS_NODEJS_PUPPETEER_6_2
+            runtime: synthetics.Runtime.SYNTHETICS_NODEJS_PUPPETEER_6_2,
+            environmentVariables: {
+                SITE_URL: `https://54.165.167.167`
+            }
         });
 
         const canaryAlarm = new cloudwatch.Alarm(this, 'CanaryAlarm', {
@@ -53,6 +58,6 @@ export class canaryMonitor extends Construct {
             snsCanaryTopic.addSubscription(new subscriptions.EmailSubscription(email));
         }
 
-        snsCanaryTopic.addSubscription(new subscriptions.LambdaSubscription(this.slackLambda.handler));
+        snsCanaryTopic.addSubscription(new subscriptions.LambdaSubscription(this.slackLambda.lambda));
     }
 }
