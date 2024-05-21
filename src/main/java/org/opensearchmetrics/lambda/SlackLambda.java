@@ -1,5 +1,7 @@
 package org.opensearchmetrics.lambda;
 
+import com.amazon.opensearchmetrics.util.SecretsManagerUtil;
+import com.amazon.opensearchmetrics.datasource.DataSourceType;
 import lombok.extern.slf4j.Slf4j;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
@@ -16,9 +18,13 @@ import java.io.IOException;
 
 @Slf4j
 public class SlackLambda implements RequestHandler<SNSEvent, Void> {
-    private static final String SLACK_WEBHOOK_URL = "https://hooks.slack.com/workflows/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";
-    private static final String SLACK_CHANNEL = "#testting-74";
-    private static final String SLACK_USERNAME = "WEBHOOK_USERNAME";
+    try {
+        private static final String SLACK_WEBHOOK_URL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_WEBHOOK_URL).get();
+        private static final String SLACK_CHANNEL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_CHANNEL).get();
+        private static final String SLACK_USERNAME = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_USERNAME).get();
+    } catch (Exception ex) {
+        log.info("Unable to get Slack credentials", ex);
+    }
 
     @Override
     public Void handleRequest(SNSEvent event, Context context) {
@@ -48,4 +54,5 @@ public class SlackLambda implements RequestHandler<SNSEvent, Void> {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
 }

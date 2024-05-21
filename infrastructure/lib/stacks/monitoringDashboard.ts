@@ -1,12 +1,12 @@
-import {Stack, StackProps} from "aws-cdk-lib";
+import {Duration, Stack, StackProps} from "aws-cdk-lib";
 import { Construct } from 'constructs';
 import { WorkflowComponent } from "./metricsWorkflow";
 import { SnsMonitors } from "../constructs/snsMonitor";
-import {SlackLambda} from "../constructs/slackLambda";
-import {Function} from 'aws-cdk-lib/aws-lambda';
-import {canaryMonitor} from "../constructs/canaryMonitor";
 import {OpenSearchLambda} from "../constructs/lambda";
-
+import * as synthetics from "aws-cdk-lib/aws-synthetics";
+import * as path from "path";
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import Project from "../enums/project";
 
 interface OpenSearchMetricsMonitoringStackProps extends StackProps {
     readonly region: string;
@@ -17,25 +17,27 @@ interface OpenSearchMetricsMonitoringStackProps extends StackProps {
 
 export class OpenSearchMetricsMonitoringStack extends Stack {
 
-    // private readonly slackLambda: SlackLambda;
     private readonly slackLambda: OpenSearchLambda;
 
     constructor(scope: Construct, id: string, readonly props: OpenSearchMetricsMonitoringStackProps) {
         super(scope, id, props);
-        // this.slackLambda = new SlackLambda(this, 'SlackLambda');
+
+        const secretsName = 'slack-creds';
+        const slackCredsSecrets = new secretsmanager.Secret(this, 'SlackApiCreds', {
+            secretName: secretsName,
+        });
+
         this.slackLambda = new OpenSearchLambda(this, "OpenSearchMetricsSlackLambdaFunction", {
             lambdaNameBase: "OpenSearchMetricsDashboardsSlackLambda",
             handler: "org.opensearchmetrics.lambda.SlackLambda",
             lambdaZipPath: `../../../build/distributions/${props.lambdaPackage}`,
-
+            environment: {
+                SLACK_CREDENTIALS_SECRETS: secretsName,
+                SECRETS_MANAGER_REGION: slackCredsSecrets.env.region
+            }
         });
         this.snsMonitorStepFunctionExecutionsFailed();
-        new canaryMonitor(this, "SnsMonitors-CanaryFailed", {
-            snsTopic: "CanaryFailed",
-            slackLambda: this.slackLambda
-        });
-
-
+        this.snsMonitorCanaryFailed('metrics_heartbeat', `https://${Project.METRICS_HOSTED_ZONE}`);
     }
 
     /**
@@ -52,6 +54,37 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
             stepFunctionSnsAlarms: stepFunctionSnsAlarms,
             alarmNameSpace: "AWS/States",
             snsTopic: "StepFunctionExecutionsFailed",
+            slackLambda: this.slackLambda
+        });
+    }
+
+    /**
+     * Create SNS alarms for failure Canaries.
+     */
+    private snsMonitorCanaryFailed(canaryName: string, canaryUrl: string): void {
+        const canary = new synthetics.Canary(this, 'CanaryHeartbeatMonitor', {
+            canaryName: canaryName,
+            schedule: synthetics.Schedule.rate(Duration.minutes(1)),
+            test: synthetics.Test.custom({
+                code: synthetics.Code.fromAsset(path.join(__dirname, '../../canary')),
+                handler: 'index.handler',
+            }),
+            runtime: synthetics.Runtime.SYNTHETICS_NODEJS_PUPPETEER_6_2,
+            environmentVariables: {
+                SITE_URL: canaryUrl
+            }
+        });
+
+        const canaryAlarms = [
+            { alertName: 'Canary_failed_MetricsWorkflow', canary: canary },
+        ];
+
+        new SnsMonitors(this, "SnsMonitors-CanaryFailed", {
+            region: this.props.region,
+            accountId: this.props.account,
+            canaryAlarms: canaryAlarms,
+            alarmNameSpace: "CloudWatchSynthetics",
+            snsTopic: "CanaryFailed",
             slackLambda: this.slackLambda
         });
     }
