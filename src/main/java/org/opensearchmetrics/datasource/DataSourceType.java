@@ -1,4 +1,4 @@
-package com.amazon.opensearchmetrics.datasource;
+package org.opensearchmetrics.datasource;
 
 public enum DataSourceType {
     SLACK_WEBHOOK_URL,

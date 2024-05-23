@@ -1,6 +1,6 @@
-package com.amazon.opensearchmetrics.util;
+package org.opensearchmetrics.util;
 
-import com.amazon.opensearchmetrics.datasource.DataSourceType;
+import org.opensearchmetrics.datasource.DataSourceType;
 import com.amazonaws.services.secretsmanager.AWSSecretsManager;
 import com.amazonaws.services.secretsmanager.model.GetSecretValueRequest;
 import com.amazonaws.services.secretsmanager.model.GetSecretValueResult;
@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.auth.oauth2.GoogleCredentials;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,12 +34,12 @@ public class SecretsManagerUtil {
     private static class SlackCredentials {
         @JsonProperty("slackWebhookURL")
         private String slackWebhookURL;
-        @JsonProperty("slackWebhookChannel")
-        private String slackWebhookChannel;
-        @JsonProperty("slackWebhookUsername")
-        private String slackWebhookUsername;
+//        @JsonProperty("slackWebhookChannel")
+//        private String slackWebhookChannel;
+//        @JsonProperty("slackWebhookUsername")
+//        private String slackWebhookUsername;
     }
-    public Optional<String> getSlackCredentials(DataSourceType datasourceType) throws IOException {
+    public Optional<String> getSlackCredentials() throws IOException {
         String secretName = System.getenv(SLACK_CREDENTIALS_SECRETS);
         log.info("Retrieving secrets value from secrets = {} ", secretName);
         GetSecretValueResult getSecretValueResult =
@@ -48,15 +47,25 @@ public class SecretsManagerUtil {
         log.info("Successfully retrieved secrets for data source credentials");
         SlackCredentials credentials =
                 mapper.readValue(getSecretValueResult.getSecretString(), SlackCredentials.class);
-        switch (datasourceType) {
-            case SLACK:
-                return Optional.of(credentials.getSlackWebhookURL());
-            case SLACK_CHANNEL:
-                return Optional.of(credentials.getSlackWebhookChannel());
-            case SLACK_USERNAME:
-                return Optional.of(credentials.getSlackWebhookUsername());
-            default:
-                return Optional.empty();
-        }
+        return Optional.of(credentials.getSlackWebhookURL());
     }
+//    public Optional<String> getSlackCredentials(DataSourceType datasourceType) throws IOException {
+//        String secretName = System.getenv(SLACK_CREDENTIALS_SECRETS);
+//        log.info("Retrieving secrets value from secrets = {} ", secretName);
+//        GetSecretValueResult getSecretValueResult =
+//                secretsManager.getSecretValue(new GetSecretValueRequest().withSecretId(secretName));
+//        log.info("Successfully retrieved secrets for data source credentials");
+//        SlackCredentials credentials =
+//                mapper.readValue(getSecretValueResult.getSecretString(), SlackCredentials.class);
+//        switch (datasourceType) {
+//            case SLACK_WEBHOOK_URL:
+//                return Optional.of(credentials.getSlackWebhookURL());
+//            case SLACK_CHANNEL:
+//                return Optional.of(credentials.getSlackWebhookChannel());
+//            case SLACK_USERNAME:
+//                return Optional.of(credentials.getSlackWebhookUsername());
+//            default:
+//                return Optional.empty();
+//        }
+//    }
 }
