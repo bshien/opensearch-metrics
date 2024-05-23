@@ -24,9 +24,6 @@ import java.io.IOException;
 public class SlackLambda implements RequestHandler<SNSEvent, Void> {
     private static final ServiceComponent COMPONENT = DaggerServiceComponent.create();
     private final SecretsManagerUtil secretsManagerUtil;
-//    private static final String SLACK_WEBHOOK_URL;
-//    private static final String SLACK_CHANNEL;
-//    private static final String SLACK_USERNAME;
 
     public SlackLambda() {
         this(COMPONENT.getSecretsManagerUtil());
@@ -37,24 +34,12 @@ public class SlackLambda implements RequestHandler<SNSEvent, Void> {
         this.secretsManagerUtil = secretsManagerUtil;
     }
 
-//    static {
-//        try {
-//            SLACK_WEBHOOK_URL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_WEBHOOK_URL).get();
-//            SLACK_CHANNEL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_CHANNEL).get();
-//            SLACK_USERNAME = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_USERNAME).get();
-//        } catch (Exception ex) {
-//            log.info("Unable to get Slack credentials", ex);
-//        }
-//    }
-
     @Override
     public Void handleRequest(SNSEvent event, Context context) {
         String slackWebhookURL;
         String slackChannel;
         String slackUsername;
         try {
-//            System.out.println("printing secrets: ");
-//            System.out.println(secretsManagerUtil.getSlackCredentials().get());
             slackWebhookURL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_WEBHOOK_URL).get();
             slackChannel = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_CHANNEL).get();
             slackUsername = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_USERNAME).get();

@@ -39,16 +39,7 @@ public class SecretsManagerUtil {
         @JsonProperty("slackWebhookUsername")
         private String slackWebhookUsername;
     }
-//    public Optional<String> getSlackCredentials() throws IOException {
-//        String secretName = System.getenv(SLACK_CREDENTIALS_SECRETS);
-//        log.info("Retrieving secrets value from secrets = {} ", secretName);
-//        GetSecretValueResult getSecretValueResult =
-//                secretsManager.getSecretValue(new GetSecretValueRequest().withSecretId(secretName));
-//        log.info("Successfully retrieved secrets for data source credentials");
-//        SlackCredentials credentials =
-//                mapper.readValue(getSecretValueResult.getSecretString(), SlackCredentials.class);
-//        return Optional.of(credentials.getSlackWebhookURL());
-//    }
+
     public Optional<String> getSlackCredentials(DataSourceType datasourceType) throws IOException {
         String secretName = System.getenv(SLACK_CREDENTIALS_SECRETS);
         log.info("Retrieving secrets value from secrets = {} ", secretName);
