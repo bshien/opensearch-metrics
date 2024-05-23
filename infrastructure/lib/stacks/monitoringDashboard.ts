@@ -7,6 +7,7 @@ import * as synthetics from "aws-cdk-lib/aws-synthetics";
 import * as path from "path";
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import Project from "../enums/project";
+import {ManagedPolicy, Role, ServicePrincipal} from "aws-cdk-lib/aws-iam";
 
 interface OpenSearchMetricsMonitoringStackProps extends StackProps {
     readonly region: string;
@@ -26,11 +27,20 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
         const slackCredsSecrets = new secretsmanager.Secret(this, 'SlackApiCreds', {
             secretName: secretsName,
         });
+        const slackLambdaRole = new Role(this, 'OpenSearchSlackLambdaRole', {
+            assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
+            description: "OpenSearch Metrics Slack Lambda Execution Role",
+            roleName: "OpenSearchSlackLambdaRole",
+            managedPolicies: [
+                ManagedPolicy.fromAwsManagedPolicyName('SecretsManagerReadWrite'),
+            ]
+        });
 
         this.slackLambda = new OpenSearchLambda(this, "OpenSearchMetricsSlackLambdaFunction", {
             lambdaNameBase: "OpenSearchMetricsDashboardsSlackLambda",
             handler: "org.opensearchmetrics.lambda.SlackLambda",
             lambdaZipPath: `../../../build/distributions/${props.lambdaPackage}`,
+            role: slackLambdaRole,
             environment: {
                 SLACK_CREDENTIALS_SECRETS: secretsName,
                 SECRETS_MANAGER_REGION: slackCredsSecrets.env.region

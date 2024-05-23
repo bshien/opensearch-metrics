@@ -50,22 +50,20 @@ public class SlackLambda implements RequestHandler<SNSEvent, Void> {
     @Override
     public Void handleRequest(SNSEvent event, Context context) {
         String slackWebhookURL;
-//        String slackChannel;
-//        String slackUsername;
+        String slackChannel;
+        String slackUsername;
         try {
-            System.out.println("printing secrets: ");
-            System.out.println(secretsManagerUtil.getSlackCredentials().get());
-//            SLACK_WEBHOOK_URL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_WEBHOOK_URL).get();
-//            SLACK_CHANNEL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_CHANNEL).get();
-//            SLACK_USERNAME = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_USERNAME).get();
+//            System.out.println("printing secrets: ");
+//            System.out.println(secretsManagerUtil.getSlackCredentials().get());
+            slackWebhookURL = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_WEBHOOK_URL).get();
+            slackChannel = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_CHANNEL).get();
+            slackUsername = secretsManagerUtil.getSlackCredentials(DataSourceType.SLACK_USERNAME).get();
         } catch (Exception ex) {
             log.error("Unable to get Slack credentials", ex);
-            System.out.println("something wrong");
             throw new RuntimeException(ex);
-//            return null;
         }
         String message = event.getRecords().get(0).getSNS().getMessage();
-//        sendMessageToSlack(message, slackWebhookURL, slackChannel, slackUsername);
+        sendMessageToSlack(message, slackWebhookURL, slackChannel, slackUsername);
         return null;
     }
 
