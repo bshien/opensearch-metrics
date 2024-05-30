@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import { WorkflowComponent } from "./metricsWorkflow";
 import { SnsMonitors } from "../constructs/snsMonitor";
 import {OpenSearchLambda} from "../constructs/lambda";
+import {MetricsSecrets} from "../constructs/secrets";
 import * as synthetics from "aws-cdk-lib/aws-synthetics";
 import * as path from "path";
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -23,10 +24,11 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
     constructor(scope: Construct, id: string, readonly props: OpenSearchMetricsMonitoringStackProps) {
         super(scope, id, props);
 
-        const secretsName = 'slack-creds';
-        const slackCredsSecrets = new secretsmanager.Secret(this, 'SlackApiCreds', {
-            secretName: secretsName,
-        });
+        // const secretsName = 'slack-creds';
+        // const slackCredsSecrets = new secretsmanager.Secret(this, 'SlackApiCreds', {
+        //     secretName: secretsName,
+        // });
+        const metricsSecrets = new MetricsSecrets(this, 'MetricsCred');
         const slackLambdaRole = new Role(this, 'OpenSearchSlackLambdaRole', {
             assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
             description: "OpenSearch Metrics Slack Lambda Execution Role",
@@ -42,8 +44,8 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
             lambdaZipPath: `../../../build/distributions/${props.lambdaPackage}`,
             role: slackLambdaRole,
             environment: {
-                SLACK_CREDENTIALS_SECRETS: secretsName,
-                SECRETS_MANAGER_REGION: slackCredsSecrets.env.region
+                SLACK_CREDENTIALS_SECRETS: metricsSecrets.secretsName,
+                SECRETS_MANAGER_REGION: metricsSecrets.secretsObject.env.region
             }
         });
         this.snsMonitorStepFunctionExecutionsFailed();
