@@ -34,10 +34,10 @@ public class SecretsManagerUtil {
     private static class SlackCredentials {
         @JsonProperty("slackWebhookURL")
         private String slackWebhookURL;
-        @JsonProperty("slackWebhookChannel")
-        private String slackWebhookChannel;
-        @JsonProperty("slackWebhookUsername")
-        private String slackWebhookUsername;
+        @JsonProperty("slackChannel")
+        private String slackChannel;
+        @JsonProperty("slackUsername")
+        private String slackUsername;
     }
 
     public Optional<String> getSlackCredentials(DataSourceType datasourceType) throws IOException {
@@ -52,9 +52,9 @@ public class SecretsManagerUtil {
             case SLACK_WEBHOOK_URL:
                 return Optional.of(credentials.getSlackWebhookURL());
             case SLACK_CHANNEL:
-                return Optional.of(credentials.getSlackWebhookChannel());
+                return Optional.of(credentials.getSlackChannel());
             case SLACK_USERNAME:
-                return Optional.of(credentials.getSlackWebhookUsername());
+                return Optional.of(credentials.getSlackUsername());
             default:
                 return Optional.empty();
         }

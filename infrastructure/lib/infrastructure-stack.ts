@@ -10,6 +10,7 @@ import {ArnPrincipal} from "aws-cdk-lib/aws-iam";
 import {OpenSearchWAF} from "./stacks/waf";
 import {OpenSearchMetricsNginxCognito} from "./constructs/opensearchNginxProxyCognito";
 import {OpenSearchMetricsMonitoringStack} from "./stacks/monitoringDashboard";
+import {OpenSearchMetricsSecrets} from "./stacks/secrets";
 
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 export class InfrastructureStack extends Stack {
@@ -40,15 +41,19 @@ export class InfrastructureStack extends Stack {
       opensearchDomainStack: openSearchDomainStack, vpcStack: vpcStack, lambdaPackage: Project.LAMBDA_PACKAGE})
     openSearchMetricsWorkflowStack.node.addDependency(vpcStack, openSearchDomainStack);
 
+    // Create Secrets Manager
+
+    const openSearchMetricsSecretsStack = new OpenSearchMetricsSecrets(app, "OpenSearchMetrics-Secrets");
+
     // Create Monitoring Dashboard
 
     const openSearchMetricsMonitoringStack = new OpenSearchMetricsMonitoringStack(app, "OpenSearchMetrics-Monitoring", {
       region: Project.REGION,
       account: Project.AWS_ACCOUNT,
       workflowComponent: openSearchMetricsWorkflowStack.workflowComponent,
-      lambdaPackage: Project.LAMBDA_PACKAGE
+      lambdaPackage: Project.LAMBDA_PACKAGE,
+      secrets: openSearchMetricsSecretsStack.secretsObject
     })
-    openSearchMetricsMonitoringStack.node.addDependency(openSearchMetricsWorkflowStack);
 
     // Create OpenSearch Metrics Frontend DNS
     // const metricsHostedZone = new OpenSearchHealthRoute53(app, "OpenSearchMetrics-HostedZone", {

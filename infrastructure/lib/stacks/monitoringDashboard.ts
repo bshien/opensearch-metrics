@@ -3,18 +3,21 @@ import { Construct } from 'constructs';
 import { WorkflowComponent } from "./metricsWorkflow";
 import { SnsMonitors } from "../constructs/snsMonitor";
 import {OpenSearchLambda} from "../constructs/lambda";
-import {MetricsSecrets} from "../constructs/secrets";
+import {OpenSearchMetricsSecrets} from "./secrets";
+import {Secret} from "aws-cdk-lib/aws-secretsmanager";
 import * as synthetics from "aws-cdk-lib/aws-synthetics";
 import * as path from "path";
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import Project from "../enums/project";
-import {ManagedPolicy, Role, ServicePrincipal} from "aws-cdk-lib/aws-iam";
+import {Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal} from "aws-cdk-lib/aws-iam";
+import {OpenSearchWAF} from "./waf";
 
 interface OpenSearchMetricsMonitoringStackProps extends StackProps {
     readonly region: string;
     readonly account: string;
     readonly workflowComponent: WorkflowComponent;
     readonly lambdaPackage: string;
+    readonly secrets: Secret;
 }
 
 export class OpenSearchMetricsMonitoringStack extends Stack {
@@ -24,19 +27,19 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
     constructor(scope: Construct, id: string, readonly props: OpenSearchMetricsMonitoringStackProps) {
         super(scope, id, props);
 
-        // const secretsName = 'slack-creds';
-        // const slackCredsSecrets = new secretsmanager.Secret(this, 'SlackApiCreds', {
-        //     secretName: secretsName,
-        // });
-        const metricsSecrets = new MetricsSecrets(this, 'MetricsCred');
         const slackLambdaRole = new Role(this, 'OpenSearchSlackLambdaRole', {
             assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
             description: "OpenSearch Metrics Slack Lambda Execution Role",
-            roleName: "OpenSearchSlackLambdaRole",
-            managedPolicies: [
-                ManagedPolicy.fromAwsManagedPolicyName('SecretsManagerReadWrite'),
-            ]
+            roleName: "OpenSearchSlackLambdaRole"
         });
+
+        slackLambdaRole.addToPolicy(
+            new PolicyStatement({
+                effect: Effect.ALLOW,
+                actions: ["secretsmanager:GetSecretValue"],
+                resources: [`${props.secrets.secretFullArn}`],
+            }),
+        );
 
         this.slackLambda = new OpenSearchLambda(this, "OpenSearchMetricsSlackLambdaFunction", {
             lambdaNameBase: "OpenSearchMetricsDashboardsSlackLambda",
@@ -44,8 +47,8 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
             lambdaZipPath: `../../../build/distributions/${props.lambdaPackage}`,
             role: slackLambdaRole,
             environment: {
-                SLACK_CREDENTIALS_SECRETS: metricsSecrets.secretsName,
-                SECRETS_MANAGER_REGION: metricsSecrets.secretsObject.env.region
+                SLACK_CREDENTIALS_SECRETS: props.secrets.secretName,
+                SECRETS_MANAGER_REGION: props.secrets.env.region
             }
         });
         this.snsMonitorStepFunctionExecutionsFailed();
@@ -79,7 +82,7 @@ export class OpenSearchMetricsMonitoringStack extends Stack {
             schedule: synthetics.Schedule.rate(Duration.minutes(1)),
             test: synthetics.Test.custom({
                 code: synthetics.Code.fromAsset(path.join(__dirname, '../../canary')),
-                handler: 'index.handler',
+                handler: 'urlMonitor.handler',
             }),
             runtime: synthetics.Runtime.SYNTHETICS_NODEJS_PUPPETEER_6_2,
             environmentVariables: {
