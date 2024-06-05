@@ -5,9 +5,13 @@ import org.opensearchmetrics.datasource.DataSourceType;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Data;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.SNSEvent;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.http.HttpResponse;
@@ -24,6 +28,7 @@ import java.io.IOException;
 public class SlackLambda implements RequestHandler<SNSEvent, Void> {
     private static final ServiceComponent COMPONENT = DaggerServiceComponent.create();
     private final SecretsManagerUtil secretsManagerUtil;
+    private final ObjectMapper mapper;
 
     public SlackLambda() {
         this(COMPONENT.getSecretsManagerUtil());
@@ -32,6 +37,23 @@ public class SlackLambda implements RequestHandler<SNSEvent, Void> {
     @VisibleForTesting
     SlackLambda(@NonNull SecretsManagerUtil secretsManagerUtil) {
         this.secretsManagerUtil = secretsManagerUtil;
+        this.mapper = COMPONENT.getObjectMapper();
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @Data
+    private static class AlarmObject {
+        @JsonProperty("AlarmName")
+        private String alarmName;
+        @JsonProperty("AlarmDescription")
+        private String alarmDescription;
+        @JsonProperty("StateChangeTime")
+        private String stateChangeTime;
+        @JsonProperty("Region")
+        private String region;
+        @JsonProperty("AlarmArn")
+        private String alarmArn;
     }
 
     @Override
@@ -48,30 +70,44 @@ public class SlackLambda implements RequestHandler<SNSEvent, Void> {
             throw new RuntimeException(ex);
         }
         String message = event.getRecords().get(0).getSNS().getMessage();
-        sendMessageToSlack(message, slackWebhookURL, slackChannel, slackUsername);
+        try {
+            sendMessageToSlack(message, slackWebhookURL, slackChannel, slackUsername);
+        } catch (Exception ex) {
+            log.error("Unable to send message to Slack", ex);
+            throw new RuntimeException(ex);
+        }
         return null;
     }
 
-    private void sendMessageToSlack(String message, String slackWebhookURL, String slackChannel, String slackUsername) {
-        ObjectMapper objectMapper = new ObjectMapper();
-        ObjectNode payload = objectMapper.createObjectNode();
+    private void sendMessageToSlack(String message, String slackWebhookURL, String slackChannel, String slackUsername) throws IOException {
+//        ObjectMapper objectMapper = new ObjectMapper();
+        AlarmObject alarmObject =
+                mapper.readValue(message, AlarmObject.class);
+        String alarmMessage = ":alert: OpenSearch Metrics Dashboard Monitoring alarm activated. Please investigate the issue. \n" +
+                "- Name: " + alarmObject.getAlarmName() + "\n" +
+                "- Description: " + alarmObject.getAlarmDescription() + "\n" +
+                "- StateChangeTime: " + alarmObject.getStateChangeTime() + "\n" +
+                "- Region: " + alarmObject.getRegion() + "\n" +
+                "- AlarmArn: " + alarmObject.getAlarmArn();
+        ObjectNode payload = mapper.createObjectNode();
         payload.put("channel", slackChannel);
         payload.put("username", slackUsername);
-        payload.put("Content", message);
+        payload.put("Content", alarmMessage);
         payload.put("icon_emoji", "");
 
         try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
             HttpPost httpPost = new HttpPost(slackWebhookURL);
-            httpPost.setEntity(new StringEntity(objectMapper.writeValueAsString(payload), "UTF-8"));
+            httpPost.setEntity(new StringEntity(mapper.writeValueAsString(payload), "UTF-8"));
             HttpResponse response = httpClient.execute(httpPost);
 
             System.out.println("{" +
-                    "\"message\": \"" + message + "\"," +
+                    "\"message\": \"" + alarmMessage + "\"," +
                     "\"status_code\": " + response.getStatusLine().getStatusCode() + "," +
                     "\"response\": \"" + response.getEntity().getContent().toString() + "\"" +
                     "}");
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            throw new RuntimeException(ex);
         }
     }
 }

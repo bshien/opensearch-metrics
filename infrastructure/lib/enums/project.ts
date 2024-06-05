@@ -3,7 +3,7 @@ enum Project{
     JENKINS_MASTER_ROLE = '',
     JENKINS_AGENT_ROLE = '',
     REGION = 'us-east-1',
-    METRICS_HOSTED_ZONE = '',
+    METRICS_HOSTED_ZONE = 'metrics.opensearch.org',
     METRICS_COGNITO_HOSTED_ZONE = '',
     RESTRICTED_PREFIX = 'pl-60b85b09',
     LAMBDA_PACKAGE = 'opensearch-metrics-1.0.zip',

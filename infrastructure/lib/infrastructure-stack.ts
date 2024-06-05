@@ -52,7 +52,8 @@ export class InfrastructureStack extends Stack {
       account: Project.AWS_ACCOUNT,
       workflowComponent: openSearchMetricsWorkflowStack.workflowComponent,
       lambdaPackage: Project.LAMBDA_PACKAGE,
-      secrets: openSearchMetricsSecretsStack.secretsObject
+      secrets: openSearchMetricsSecretsStack.secretsObject,
+      vpcStack: vpcStack
     })
 
     // Create OpenSearch Metrics Frontend DNS
