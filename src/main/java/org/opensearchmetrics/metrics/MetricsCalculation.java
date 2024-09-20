@@ -6,10 +6,13 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearchmetrics.metrics.general.*;
 import org.opensearchmetrics.metrics.label.LabelMetrics;
+import org.opensearchmetrics.metrics.maintainer.MaintainerMetrics;
 import org.opensearchmetrics.metrics.release.ReleaseInputs;
 import org.opensearchmetrics.metrics.release.ReleaseMetrics;
 import org.opensearchmetrics.model.label.LabelData;
 import org.opensearchmetrics.model.general.MetricsData;
+import org.opensearchmetrics.model.maintainer.EventData;
+import org.opensearchmetrics.model.maintainer.MaintainerData;
 import org.opensearchmetrics.model.release.ReleaseMetricsData;
 import org.opensearchmetrics.util.OpenSearchUtil;
 
@@ -19,7 +22,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,6 +53,7 @@ public class MetricsCalculation {
     private final IssueNegativeReactions issueNegativeReactions;
     private final LabelMetrics labelMetrics;
     private final ReleaseMetrics releaseMetrics;
+    private final MaintainerMetrics maintainerMetrics;
 
 
     public MetricsCalculation(OpenSearchUtil openSearchUtil, ObjectMapper objectMapper,
@@ -58,7 +64,7 @@ public class MetricsCalculation {
                               CreatedIssues createdIssues, IssueComments issueComments,
                               PullComments pullComments, IssuePositiveReactions issuePositiveReactions,
                               IssueNegativeReactions issueNegativeReactions, LabelMetrics labelMetrics,
-                              ReleaseMetrics releaseMetrics) {
+                              ReleaseMetrics releaseMetrics, MaintainerMetrics maintainerMetrics) {
         this.unlabelledPullRequests = unlabelledPullRequests;
         this.unlabelledIssues = unlabelledIssues;
         this.mergedPullRequests = mergedPullRequests;
@@ -77,6 +83,7 @@ public class MetricsCalculation {
         this.uncommentedPullRequests = uncommentedPullRequests;
         this.labelMetrics = labelMetrics;
         this.releaseMetrics = releaseMetrics;
+        this.maintainerMetrics = maintainerMetrics;
     }
 
 
@@ -156,47 +163,117 @@ public class MetricsCalculation {
                 Arrays.stream(releaseInputs)
                         .filter(ReleaseInputs::getTrack)
                         .flatMap(releaseInput -> releaseMetrics.getReleaseRepos(releaseInput.getVersion()).entrySet().stream()
-                        .flatMap(entry -> {
-                            String repoName = entry.getKey();
-                            String componentName = entry.getValue();
-                            ReleaseMetricsData releaseMetricsData = new ReleaseMetricsData();
-                            releaseMetricsData.setRepository(repoName);
-                            releaseMetricsData.setComponent(componentName);
-                            releaseMetricsData.setCurrentDate(currentDate.toString());
-                            try {
-                                releaseMetricsData.setId(String.valueOf(UUID.nameUUIDFromBytes(MessageDigest.getInstance("SHA-1")
-                                        .digest(("release-metrics-" + releaseInput.getVersion() + "-" + currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + "-" + repoName)
-                                                .getBytes()))));
-                            } catch (NoSuchAlgorithmException e) {
-                                throw new RuntimeException(e);
-                            }
-                            releaseMetricsData.setReleaseVersion(releaseInput.getVersion());
-                            releaseMetricsData.setVersion(releaseInput.getVersion());
-                            releaseMetricsData.setReleaseState(releaseInput.getState());
-                            releaseMetricsData.setIssuesOpen(releaseMetrics.getReleaseLabelIssues(releaseInput.getVersion(), repoName, "open", false));
-                            releaseMetricsData.setAutocutIssuesOpen(releaseMetrics.getReleaseLabelIssues(releaseInput.getVersion(), repoName, "open", true));
-                            releaseMetricsData.setIssuesClosed(releaseMetrics.getReleaseLabelIssues(releaseInput.getVersion(), repoName, "closed", false));
-                            releaseMetricsData.setPullsOpen(releaseMetrics.getReleaseLabelPulls(releaseInput.getVersion(), repoName, "open"));
-                            releaseMetricsData.setPullsClosed(releaseMetrics.getReleaseLabelPulls(releaseInput.getVersion(), repoName, "closed"));
-                            releaseMetricsData.setVersionIncrement(releaseMetrics.getReleaseVersionIncrement(releaseInput.getVersion(), repoName, releaseInput.getBranch()));
-                            releaseMetricsData.setReleaseNotes(releaseMetrics.getReleaseNotes(releaseInput.getVersion(), repoName, releaseInput.getBranch()));
-                            releaseMetricsData.setReleaseBranch(releaseMetrics.getReleaseBranch(releaseInput.getVersion(), repoName));
-                            String[] releaseOwners = releaseMetrics.getReleaseOwners(releaseInput.getVersion(), repoName);
-                            releaseMetricsData.setReleaseOwners(releaseOwners);
-                            releaseMetricsData.setReleaseOwnerExists(Optional.ofNullable(releaseOwners)
-                                    .map(owners -> owners.length > 0)
-                                    .orElse(false));
-                            String releaseIssue = releaseMetrics.getReleaseIssue(releaseInput.getVersion(), repoName);
-                            releaseMetricsData.setReleaseIssue(releaseIssue);
-                            releaseMetricsData.setReleaseIssueExists(Optional.ofNullable(releaseIssue)
-                                    .map(str -> !str.isEmpty())
-                                    .orElse(false));
-                            return Stream.of(releaseMetricsData);
-                        }))
-                .collect(Collectors.toMap(ReleaseMetricsData::getId,
-                        releaseMetricsData -> releaseMetricsData.getJson(releaseMetricsData, objectMapper)));
+                                .flatMap(entry -> {
+                                    String repoName = entry.getKey();
+                                    String componentName = entry.getValue();
+                                    ReleaseMetricsData releaseMetricsData = new ReleaseMetricsData();
+                                    releaseMetricsData.setRepository(repoName);
+                                    releaseMetricsData.setComponent(componentName);
+                                    releaseMetricsData.setCurrentDate(currentDate.toString());
+                                    try {
+                                        releaseMetricsData.setId(String.valueOf(UUID.nameUUIDFromBytes(MessageDigest.getInstance("SHA-1")
+                                                .digest(("release-metrics-" + releaseInput.getVersion() + "-" + currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + "-" + repoName)
+                                                        .getBytes()))));
+                                    } catch (NoSuchAlgorithmException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                    releaseMetricsData.setReleaseVersion(releaseInput.getVersion());
+                                    releaseMetricsData.setVersion(releaseInput.getVersion());
+                                    releaseMetricsData.setReleaseState(releaseInput.getState());
+                                    releaseMetricsData.setIssuesOpen(releaseMetrics.getReleaseLabelIssues(releaseInput.getVersion(), repoName, "open", false));
+                                    releaseMetricsData.setAutocutIssuesOpen(releaseMetrics.getReleaseLabelIssues(releaseInput.getVersion(), repoName, "open", true));
+                                    releaseMetricsData.setIssuesClosed(releaseMetrics.getReleaseLabelIssues(releaseInput.getVersion(), repoName, "closed", false));
+                                    releaseMetricsData.setPullsOpen(releaseMetrics.getReleaseLabelPulls(releaseInput.getVersion(), repoName, "open"));
+                                    releaseMetricsData.setPullsClosed(releaseMetrics.getReleaseLabelPulls(releaseInput.getVersion(), repoName, "closed"));
+                                    releaseMetricsData.setVersionIncrement(releaseMetrics.getReleaseVersionIncrement(releaseInput.getVersion(), repoName, releaseInput.getBranch()));
+                                    releaseMetricsData.setReleaseNotes(releaseMetrics.getReleaseNotes(releaseInput.getVersion(), repoName, releaseInput.getBranch()));
+                                    releaseMetricsData.setReleaseBranch(releaseMetrics.getReleaseBranch(releaseInput.getVersion(), repoName));
+                                    String[] releaseOwners = releaseMetrics.getReleaseOwners(releaseInput.getVersion(), repoName);
+                                    releaseMetricsData.setReleaseOwners(releaseOwners);
+                                    releaseMetricsData.setReleaseOwnerExists(Optional.ofNullable(releaseOwners)
+                                            .map(owners -> owners.length > 0)
+                                            .orElse(false));
+                                    String releaseIssue = releaseMetrics.getReleaseIssue(releaseInput.getVersion(), repoName);
+                                    releaseMetricsData.setReleaseIssue(releaseIssue);
+                                    releaseMetricsData.setReleaseIssueExists(Optional.ofNullable(releaseIssue)
+                                            .map(str -> !str.isEmpty())
+                                            .orElse(false));
+                                    return Stream.of(releaseMetricsData);
+                                }))
+                        .collect(Collectors.toMap(ReleaseMetricsData::getId,
+                                releaseMetricsData -> releaseMetricsData.getJson(releaseMetricsData, objectMapper)));
         openSearchUtil.createIndexIfNotExists("opensearch_release_metrics");
         openSearchUtil.bulkIndex("opensearch_release_metrics", metricFinalData);
+    }
+
+    public void generateMaintainerMetrics(List<String> repositories) {
+        long[] mostAndLeastRepoEventCounts = maintainerMetrics.mostAndLeastRepoEventCounts(openSearchUtil);
+        final long mostRepoEventCount = mostAndLeastRepoEventCounts[0];
+        final long leastRepoEventCount = mostAndLeastRepoEventCounts[1];
+
+        List<String> eventTypes = maintainerMetrics.getEventTypes(openSearchUtil);
+
+        Map<String, String> metricFinalData = repositories.stream()
+                .flatMap(repo -> {
+                    long currentRepoEventCount = maintainerMetrics.repoEventCount(repo, openSearchUtil);
+                    return maintainerMetrics.repoMaintainers(repo).stream()
+                            .flatMap(maintainerData -> {
+                                EventData latestEvent = null;
+                                List<MaintainerData> individualEvents = new ArrayList<>();
+                                for (String eventType : eventTypes) {
+                                    MaintainerData maintainerEvent = new MaintainerData();
+                                    try {
+                                        maintainerEvent.setId(String.valueOf(UUID.nameUUIDFromBytes(MessageDigest.getInstance("SHA-1")
+                                                .digest(("maintainer-engagement-" + maintainerEvent.getEventType() + "-" + currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + "-" + repo)
+                                                        .getBytes()))));
+                                    } catch (NoSuchAlgorithmException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                    maintainerEvent.setEventType(eventType);
+                                    maintainerEvent.setRepository(repo);
+                                    maintainerEvent.setName(maintainerData.getName());
+                                    maintainerEvent.setGithubLogin((maintainerData.getGithubLogin()));
+                                    maintainerEvent.setAffiliation(maintainerData.getAffiliation());
+                                    Optional<EventData> eventDataOpt = maintainerMetrics.queryLatestEvent(repo, maintainerData.getGithubLogin(), eventType, openSearchUtil, objectMapper);
+                                    if (eventDataOpt.isPresent()) {
+                                        EventData eventData = eventDataOpt.get();
+                                        eventData.setInactive(maintainerMetrics.calculateInactivity(currentRepoEventCount, mostRepoEventCount, leastRepoEventCount, eventData));
+                                        if (latestEvent != null) {
+                                            if (eventData.getTimeLastEngaged().isAfter(latestEvent.getTimeLastEngaged())) {
+                                                latestEvent = eventData;
+                                            }
+                                        } else {
+                                            latestEvent = eventData;
+                                        }
+                                        maintainerEvent.setEventAction(eventData.getEventAction());
+                                        maintainerEvent.setTimeLastEngaged(eventData.getTimeLastEngaged().toString());
+                                        maintainerEvent.setInactive(eventData.isInactive());
+                                    } else {
+                                        // If the Optional<EventData> has no value, then leave event action, time last engaged, and inactive empty
+                                        maintainerEvent.setInactive(true);
+                                    }
+                                    individualEvents.add(maintainerEvent);
+                                }
+                                maintainerData.setEventType("Any");
+                                try {
+                                    maintainerData.setId(String.valueOf(UUID.nameUUIDFromBytes(MessageDigest.getInstance("SHA-1")
+                                            .digest(("maintainer-engagement-" + maintainerData.getEventType() + "-" + currentDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + "-" + repo)
+                                                    .getBytes()))));
+                                } catch (NoSuchAlgorithmException e) {
+                                    throw new RuntimeException(e);
+                                }
+                                if (latestEvent != null) {
+                                    maintainerData.setEventAction(latestEvent.getEventAction());
+                                    maintainerData.setTimeLastEngaged(latestEvent.getTimeLastEngaged().toString());
+                                    maintainerData.setInactive(latestEvent.isInactive());
+                                }
+                                Stream<MaintainerData> compositeEvent = Stream.of(maintainerData);
+                                return Stream.concat(individualEvents.stream(), compositeEvent);
+                            });
+                })
+                .collect(Collectors.toMap(MaintainerData::getId, maintainerData -> maintainerData.getJson(maintainerData, objectMapper)));
+        openSearchUtil.createIndexIfNotExists("maintainer_engagement");
+        openSearchUtil.bulkIndex("maintainer_engagement", metricFinalData);
     }
 
 }
